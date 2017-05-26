@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 import datetime
+import netifaces
 from huawei_3g.datastructures import SMSMessage
 
 
@@ -81,8 +82,13 @@ class HuaweiE303Modem:
         :param sysfs_path: The path in /sys/** that represents this USB device
         """
         self.interface = interface
+        gws=netifaces.gateways()
+        for nettpl in gws[netifaces.AF_INET]:
+            if nettpl[1]==interface:
+                ip=nettpl[0]
+                break        
         self.path = sysfs_path
-        self.ip = "192.168.8.1"
+        self.ip = ip
         self.base_url = "http://{}/api".format(self.ip)
         self.token = ""
         # self._get_token()
