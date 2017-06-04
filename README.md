@@ -14,10 +14,10 @@ If your huawei dongle isn't working, please report an issue. More supported mode
 
 - [x] Find all Huawei modems and associated network interface
 - [x] Get modem status
-- [ ] Connect/disconnect internet
+- [x] Connect/disconnect internet
 - [ ] Change sim settings
 - [x] Get SMS messages
-- [ ] Send SMS messages
+- [x] Send SMS messages
 
 ## Usage example
 
