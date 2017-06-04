@@ -86,7 +86,7 @@ class HuaweiE303Modem:
         for nettpl in gws[netifaces.AF_INET]:
             if nettpl[1]==interface:
                 ip=nettpl[0]
-                break        
+                break
         self.path = sysfs_path
         self.ip = ip
         self.base_url = "http://{}/api".format(self.ip)
@@ -199,6 +199,22 @@ class HuaweiE303Modem:
             xml += "<Index>{}</Index>".format(message_id)
         xml += "</request>"
         self._api_post("/sms/delete-sms", xml)
+
+    def send_sms(self, number, message):
+        mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Index>-1</Index>"
+        mxml += "<Phones><Phone>{}</Phone></Phones><Sca/>".format(number)
+        mxml += "<Content>{}</Content>".format(message)
+        mxml += "<Length>{}</Length><Reserved>1</Reserved>".format(len(message))
+        mxml += "<Date>{}</Date></request>".format(datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d %H:%M:%S'))
+        self._api_post("/sms/send-sms",mxml)
+
+    def connect(self):
+        xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Action>1</Action></request>"
+        self._api_post("/dialup/dial",xml)
+
+    def disconnect(self):
+        xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Action>0</Action></request>"
+        self._api_post("/dialup/dial",xml)
 
     def __repr__(self):
         return "<HuaweiE303Modem {} ({})>".format(self.interface, self.path)
