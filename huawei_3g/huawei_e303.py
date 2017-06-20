@@ -201,6 +201,7 @@ class HuaweiE303Modem:
         self._api_post("/sms/delete-sms", xml)
 
     def send_sms(self, number, message):
+        """ Added 04th june 2017 by Bjoern"""
         mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Index>-1</Index>"
         mxml += "<Phones><Phone>{}</Phone></Phones><Sca/>".format(number)
         mxml += "<Content>{}</Content>".format(message)
