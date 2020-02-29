@@ -2,6 +2,10 @@ import requests
 import xmltodict
 import datetime
 import netifaces
+import queue
+import logging
+import logging.handlers
+from pprint import pformat
 from huawei_3g.datastructures import SMSMessage
 
 
@@ -9,7 +13,7 @@ class TokenError(Exception):
     pass
 
 
-class HuaweiE303Modem:
+class HuaweiModem:
     """ This class abstracts the communication with a Huawei HiLink E303 modem"""
     token = ""
 
@@ -75,7 +79,7 @@ class HuaweiE303Modem:
         905: "Connection failed, signal poor",
     }
 
-    def __init__(self, interface, sysfs_path):
+    def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
         """ Create instance of the HuaweiE303Modem class
 
         :param interface: The name of the network interface associated with this modem
@@ -91,7 +95,32 @@ class HuaweiE303Modem:
         self.ip = ip
         self.base_url = "http://{}/api".format(self.ip)
         self.token = ""
+        if log == None:
+            logger = logging.getLogger(u'HuaweiModem')
+            logger.setLevel(logLevel)
+            handler  = logging.StreamHandler()
+            logger.addHandler(handler)
+            self._log = logger
+        else:
+            self._log = logger
+
+        self._infos = {}
+        try:
+            self._infos = self.get_device_infos()
+        except TokenError:
+            self._get_token_ext()
+            self._infos = self.get_device_infos()
+        if u'DeviceName' in self._infos.keys():
+            pass
+        else:
+            # modele type E3372
+            self._devicename = u'E3372'
+        self._log.info(u'{}'.format(self._infos))
         # self._get_token()
+
+    def get_device_infos(self):
+        status_raw = self._api_get("/device/information")
+        return(status_raw)
 
     def get_status(self):
         """ Get the status of the attached modem
@@ -224,30 +253,106 @@ class HuaweiE303Modem:
         token_response = self._api_get("/webserver/token")
         self.token = token_response['token']
 
-    def _api_get(self, url):
+    def _get_token_ext(self):
+        log = self._log
+        token_raw = self._api_get("/webserver/SesTokInfo")
+        if token_raw != {}:
+            if u'error' in token_raw:
+                log.debug(u'error: %s' % (token_raw[u'error']))
+            else:
+                log.debug(u'token_raw: %s' % (token_raw))
+                log.debug(u'tokinfo: %s' % (token_raw[u'TokInfo']))
+                log.debug(u'sesinfo: %s' % (token_raw[u'SesInfo']))
+                log.debug(u'sessionid: %s' % (token_raw[u'SesInfo'].split(u'=')[1]))
+                self.token  = token_raw[u'TokInfo']
+                self.cookie = token_raw[u'SesInfo'].split(u'=')[1]
+
+    def _api_request_token(self, url,rtype=u'GET',parameters=None):
+        if rtype==u'POST':
+            response = requests.post(url, parameters, headers={
+                "__RequestVerificationToken": self.token
+            },
+            cookies = {u'SessionId': self.cookie}
+            )
+        elif rtype==u'GET':
+            response = requests.get(url, parameters, headers={
+                "__RequestVerificationToken": self.token
+            },
+            cookies = {u'SessionId': self.cookie}
+            )
+        return response 
+
+    def _api_request_base(self, url,rtype=u'GET',parameters=None):
+        if rtype==u'POST':
+            response = requests.post(url, parameters, headers={
+                "__RequestVerificationToken": self.token
+            })
+        elif rtype==u'GET':
+            response = requests.get(url, parameters, headers={
+                "__RequestVerificationToken": self.token
+            })
+        return response
+
+    
+    def _api_request(self, url,rtype=u'GET',parameters=None):
+        log = self._log
         full_url = self.base_url + url
-        response = requests.get(full_url, headers={
-            "__RequestVerificationToken": self.token
-        })
-        try:
-            return self._parse_api_response(response)
-        except TokenError:
-            self._get_token()
-            return self._api_get(url)
+        resp_dict = {}
+        log.debug('##############################################')
+        log.debug('Server request: {0}'.format(pformat(url)))
+        log.debug('##############################################')
+        if parameters!=None:
+            parameters_bytes = parameters.encode('UTF-8')
+        else:
+            parameters_bytes = None
+        if (self.deviceName==u'E3372') or (self.token!=u''):
+            # il faut cookie et token
+            # essai avec cookie courant
+            response = self._api_request_token(full_url,rtype,parameters_bytes)
+            try:
+                resp_dict = self._parse_api_response(response)
+            except TokenError:
+                # demande nouveau cookie
+                self._get_token_ext()
+                response = self._api_request_token(full_url,rtype,parameters_bytes)
+                resp_dict = self._parse_api_response(response)
+        else:
+            response = self._api_request_base(full_url,rtype,parameters_bytes)
+            try:
+                resp_dict = self._parse_api_response(response)
+            except TokenError:
+                # demande nouveau cookie
+                if url!=u'/webserver/token':
+                    self._get_token()
+                response = self._api_request_base(full_url,rtype,parameters_bytes)
+                resp_dict = self._parse_api_response(response)
+
+        log.debug('##############################################')
+        log.debug('Server response: \n{0}'.format(pformat(resp_dict)))
+        log.debug('##############################################')
+        
+        return resp_dict
+
+    def _api_get(self, url):
+        return self._api_request(url,rtype=u'GET',parameters=None)
 
     def _api_post(self, url, parameters):
-        full_url = self.base_url + url
-        parameters_bytes = parameters.encode('UTF-8')
+        return self._api_request(url,rtype=u'POST',parameters=parameters)
 
-        response = requests.post(full_url, parameters_bytes, headers={
-            "__RequestVerificationToken": self.token
-        })
+    @property
+    def deviceName(self):
+        if u'DeviceName' in self._infos.keys():
+            return self._infos[u'DeviceName']
+        else:
+            return u''
 
-        try:
-            return self._parse_api_response(response)
-        except TokenError:
-            self._get_token()
-            return self._api_post(url, parameters)
+    @property
+    def macaddress(self):
+        return self._infos[u'macaddress1']
+
+    @property
+    def log(self):
+        return self._log
 
     def _parse_api_response(self, response):
         if response.status_code == 200:
@@ -260,6 +365,8 @@ class HuaweiE303Modem:
             else:
                 code = parsed['error']['code']
                 if str(code) == "125001":
+                    raise TokenError()
+                elif str(code) in ("125001","125002"):
                     raise TokenError()
                 if code in self._error_codes:
                     raise Exception(self._error_codes[str(code)])
