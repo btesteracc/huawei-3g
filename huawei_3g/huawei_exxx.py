@@ -15,7 +15,7 @@ class TokenError(Exception):
 
 class HuaweiModem:
     """ This class abstracts the communication with a
-    Huawei HiLink E303 modem"""
+    Huawei HiLink E303, E3372, ... modem"""
     token = ""
 
     _error_codes = {
@@ -84,7 +84,7 @@ class HuaweiModem:
     }
 
     def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
-        """ Create instance of the HuaweiE303Modem class
+        """ Create instance of the HuaweiModem class
 
         :param interface: Name of the network interface associated with this modem
         :param sysfs_path: The path in /sys/** that represents this USB device
@@ -219,14 +219,14 @@ class HuaweiModem:
 
         This removes a message from the modem by message index. The message index is found in
         the :class:`~huawei_3g.datastructures.SMSMessage` instance returned
-        by :func:`~huawei_3g.HuaweiE303Modem.get_messages`
+        by :func:`~huawei_3g.HuaweiModem.get_messages`
         """
         return self.delete_messages([message_id])
 
     def delete_messages(self, ids):
         """ Delete multiple SMS messages from the modem
 
-        This does the same thing as :func:`~huawei_3g.HuaweiE303Modem.delete_message` but accepts a list of message
+        This does the same thing as :func:`~huawei_3g.HuaweiModem.delete_message` but accepts a list of message
         indexes to delete them in a single API call.
         """
         xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request>"
@@ -235,14 +235,24 @@ class HuaweiModem:
         xml += "</request>"
         self._api_post("/sms/delete-sms", xml)
 
-    def send_sms(self, number, message):
+    def send_sms(self, numbers, message):
+        """ send sms to a list of number
+
+        :param numbers: array of phone number
+        :param text to send
+        """
         """ Added 04th june 2017 by Bjoern"""
+        """ Updated 01th febr 2020 by Afer92"""
+        phones = u''
+        for number in numbers:
+            phones += u'<Phone>{}</Phone>'.format(number)
         mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Index>-1</Index>"
-        mxml += "<Phones><Phone>{}</Phone></Phones><Sca/>".format(number)
+        mxml += "<Phones>{}</Phones><Sca/>".format(phones)
         mxml += "<Content>{}</Content>".format(message)
         mxml += "<Length>{}</Length><Reserved>1</Reserved>".format(len(message))
         mxml += "<Date>{}</Date></request>".format(datetime.datetime.strftime(datetime.datetime.now(),
                                                                               '%Y-%m-%d %H:%M:%S'))
+        self.log.debug(mxml)
         self._api_post("/sms/send-sms", mxml)
 
     def connect(self):
@@ -254,7 +264,7 @@ class HuaweiModem:
         self._api_post("/dialup/dial", xml)
 
     def __repr__(self):
-        return "<HuaweiE303Modem {} ({})>".format(self.interface, self.path)
+        return "<HuaweiModem {} ({})>".format(self.interface, self.path)
 
     def _get_token(self):
         token_response = self._api_get("/webserver/token")
@@ -365,8 +375,102 @@ class HuaweiModem:
             return u''
 
     @property
-    def macaddress(self):
-        return self._infos[u'macaddress1']
+    def macAddress1(self):
+        if u'MacAddress1' in self._infos.keys():
+            return self._infos[u'MacAddress1']
+        else:
+            return u''
+
+    @property
+    def imei(self):
+        if u'Imei' in self._infos.keys():
+            return self._infos[u'Imei']
+        else:
+            return u''
+
+    @property
+    def imsi(self):
+        if u'Imsi' in self._infos.keys():
+            return self._infos[u'Imsi']
+        else:
+            return u''
+
+    @property
+    def iccid(self):
+        if u'Iccid' in self._infos.keys():
+            return self._infos[u'Iccid']
+        else:
+            return u''
+
+    @property
+    def msisdn(self):
+        if u'Msisdn' in self._infos.keys():
+            return self._infos[u'Msisdn']
+        else:
+            return u''
+
+    @property
+    def hardwareVersion(self):
+        if u'HardwareVersion' in self._infos.keys():
+            return self._infos[u'HardwareVersion']
+        else:
+            return u''
+
+    @property
+    def softwareVersion(self):
+        if u'SoftwareVersion' in self._infos.keys():
+            return self._infos[u'SoftwareVersion']
+        else:
+            return u''
+
+    @property
+    def webUIVersion(self):
+        if u'WebUIVersion' in self._infos.keys():
+            return self._infos[u'WebUIVersion']
+        else:
+            return u''
+
+    @property
+    def macAddress2(self):
+        if u'MacAddress2' in self._infos.keys():
+            return self._infos[u'MacAddress2']
+        else:
+            return u''
+
+    @property
+    def productFamily(self):
+        if u'ProductFamily' in self._infos.keys():
+            return self._infos[u'ProductFamily']
+        else:
+            return u''
+
+    @property
+    def classify(self):
+        if u'Classify' in self._infos.keys():
+            return self._infos[u'Classify']
+        else:
+            return u''
+
+    @property
+    def supportmode(self):
+        if u'supportmode' in self._infos.keys():
+            return self._infos[u'supportmode']
+        else:
+            return u''
+
+    @property
+    def workmode(self):
+        if u'workmode' in self._infos.keys():
+            return self._infos[u'workmode']
+        else:
+            return u''
+
+    @property
+    def serialNumber(self):
+        if u'SerialNumber' in self._infos.keys():
+            return self._infos[u'SerialNumber']
+        else:
+            return u''
 
     @property
     def log(self):
