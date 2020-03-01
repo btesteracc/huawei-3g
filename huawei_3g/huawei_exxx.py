@@ -6,7 +6,11 @@ import queue
 import logging
 import logging.handlers
 from pprint import pformat
-from huawei_3g.datastructures import SMSMessage
+import argparse
+try:
+    from huawei_3g.datastructures import SMSMessage
+except ModuleNotFoundError:
+    from datastructures import SMSMessage
 
 
 class TokenError(Exception):
@@ -129,6 +133,10 @@ class HuaweiModem:
         status_raw = self._api_get("/device/information")
         return(status_raw)
 
+    @property
+    def status(self):
+        return self.get_status()
+
     def get_status(self):
         """ Get the status of the attached modem
 
@@ -154,6 +162,10 @@ class HuaweiModem:
             'signal': signal,
             'network_type': network_type
         }
+
+    @property
+    def message_count(self):
+        return self.get_message_count()
 
     def get_message_count(self):
         """ Get the amount of SMS messages on the modem
@@ -556,3 +568,34 @@ class HuaweiModem:
                 else:
                     raise Exception("Unknown error occurred")
         return {}
+
+
+def main():
+    #
+    # parse arguments
+    #
+    loglevel = logging.INFO
+    parser = argparse.ArgumentParser(description='Test module huawei_exxx.')
+    parser.add_argument(u'--debug',u'-d', help='Logging debug', action="store_true")
+    parser.add_argument(u'--warning',u'-w', help='Logging warning', action="store_true")
+    parser.add_argument(u'--critical',u'-c', help='Logging critical', action="store_true")
+    args = parser.parse_args()
+
+    if args.debug:
+        loglevel = logging.DEBUG
+    if args.warning:
+            loglevel = logging.WARNING
+    if args.critical:
+            loglevel = logging.CRITICAL
+    import modem as modem
+    gsm = modem.load(logLevel=loglevel)[0]
+    print(gsm)
+    status = gsm.status
+    print(u'Status:\n  status      : {}\n  signal      : {}\n  network_type: {}'.format(status[u'status'],
+                                                                                        status[u'signal'],
+                                                                                        status[u'network_type']))
+
+
+if __name__ == '__main__':
+    main()
+

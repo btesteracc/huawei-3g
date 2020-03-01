@@ -1,5 +1,6 @@
 import glob
 import os.path
+import logging
 
 
 def find():
@@ -85,7 +86,7 @@ def find_interface(sysfs_device_path):
     return None
 
 
-def load():
+def load(logLevel=logging.INFO):
     """ Find all supported Huawei modem and return a list of modem objects
 
     This uses :func:`~huawei_3g.find` to search for all the modems on the computer and creates the class instances
@@ -99,6 +100,9 @@ def load():
             # if modem['class'] == 'huawei_e303':
                 # import huawei_3g.huawei_e303
                 # result.append(huawei_3g.huawei_e303.HuaweiModem(modem["interface"], modem["path"]))
-        import huawei_3g.huawei_exxx
-        result.append(huawei_3g.huawei_exxx.HuaweiModem(modem["interface"], modem["path"]))
+        try:
+            import huawei_3g.huawei_exxx as hw
+        except ModuleNotFoundError:
+            import huawei_exxx as hw
+        result.append(hw.HuaweiModem(modem["interface"], modem["path"], logLevel=logLevel))
     return result
