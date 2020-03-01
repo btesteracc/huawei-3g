@@ -95,8 +95,10 @@ def load():
     result = []
     modems = find()
     for modem in modems:
-        if modem['supported']:
-            if modem['class'] == 'huawei_e303':
-                import huawei_3g.huawei_e303
-                result.append(huawei_3g.huawei_e303.HuaweiModem(modem["interface"], modem["path"]))
+        # if modem['supported']:
+            # if modem['class'] == 'huawei_e303':
+                # import huawei_3g.huawei_e303
+                # result.append(huawei_3g.huawei_e303.HuaweiModem(modem["interface"], modem["path"]))
+        import huawei_3g.huawei_exxx
+        result.append(huawei_3g.huawei_exxx.HuaweiModem(modem["interface"], modem["path"]))
     return result
