@@ -1,6 +1,6 @@
 import requests
 import xmltodict
-import datetime
+from datetime import datetime
 import netifaces
 import queue
 import logging
@@ -15,7 +15,7 @@ class TokenError(Exception):
 
 class HuaweiModem:
     """ This class abstracts the communication with a
-    Huawei HiLink E303, E3372, ... modem"""
+    Huawei HiLink E303, E3372, E3531 ... modem"""
     token = ""
 
     _error_codes = {
@@ -99,8 +99,9 @@ class HuaweiModem:
                 break
         self.path = sysfs_path
         self.ip = ip
-        self.base_url = "http://{}/api".format(self.ip)
+        self._base_url = "http://{}/api".format(self.ip)
         self.token = ""
+        self._headers = None
         if log is None:
             logger = logging.getLogger(u'HuaweiModem')
             logger.setLevel(logLevel)
@@ -121,7 +122,7 @@ class HuaweiModem:
         else:
             # modele type E3372
             self._devicename = u'E3372'
-        self._log.info(u'{}'.format(self._infos))
+        self._log.debug(u'{}'.format(self._infos))
         # self._get_token()
 
     def get_device_infos(self):
@@ -168,10 +169,20 @@ class HuaweiModem:
         messages_raw = self._api_get("/sms/sms-count")
         return {
             'count': int(messages_raw['LocalInbox']),
-            'unread': int(messages_raw['LocalUnread'])
+            'siminbox': int(messages_raw['SimInbox']),
+            'simoutbox': int(messages_raw['SimOutbox']),
+            'newmsg': int(messages_raw['NewMsg']),
+            'unread': int(messages_raw['LocalUnread']),
+            'simunread': int(messages_raw['SimUnread']),
+            'deleted': int(messages_raw['LocalDeleted']),
+            'localmax': int(messages_raw['LocalMax']),
+            'simmax': int(messages_raw['SimMax']),
+            'simdraft': int(messages_raw['SimDraft']),
+            'localdraft': int(messages_raw['LocalDraft']),
+            'outbox': int(messages_raw['LocalOutbox'])
         }
 
-    def get_messages(self, delete=False):
+    def get_messages(self, delete=False, boxType=1):
         """ Get all SMS messages stored on the modem
 
         This receives all SMS messages that are on the internal memory of the modem as
@@ -185,11 +196,11 @@ class HuaweiModem:
                              "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request>"
                              "<PageIndex>1</PageIndex>"
                              "<ReadCount>50</ReadCount>"
-                             "<BoxType>1</BoxType>"
+                             "<BoxType>{}</BoxType>"
                              "<SortType>0</SortType>"
                              "<Ascending>0</Ascending>"
                              "<UnreadPreferred>0</UnreadPreferred>"
-                             "</request>")
+                             "</request>".format(boxType))
         messages = []
         if raw['Count'] == '0':
             return []
@@ -203,9 +214,20 @@ class HuaweiModem:
             sms = SMSMessage()
             sms.message_id = message['Index']
             sms.message = message['Content']
-            sms.sender = message['Phone']
-            receive_time = message['Date']
-            sms.receive_time = datetime.datetime.strptime(receive_time, '%Y-%m-%d %H:%M:%S')
+            sms.phone = message['Phone']
+            if boxType == 2:
+                sms.phone = message['Phone']
+                sms.dest = message['Phone']
+                send_time = message['Date']
+                sms.send_time = datetime.strptime(send_time, '%Y-%m-%d %H:%M:%S')
+                sms.rs_time = sms.send_time
+                sms.priority = message['Priority']
+            else:
+                sms.phone = message['Phone']
+                sms.sender = message['Phone']
+                receive_time = message['Date']
+                sms.receive_time = datetime.strptime(receive_time, '%Y-%m-%d %H:%M:%S')
+                sms.rs_time = sms.receive_time
             messages.append(sms)
         if delete:
             ids = []
@@ -264,7 +286,19 @@ class HuaweiModem:
         self._api_post("/dialup/dial", xml)
 
     def __repr__(self):
-        return "<HuaweiModem {} ({})>".format(self.interface, self.path)
+        part0 = u'<HuaweiModem {} ({})>'.format(self.interface, self.path)
+        part1 = u'\nDeviceName     : %s\nimei           : %s\nimsi           : %s\n' %\
+                (self.deviceName, self.imei, self.imsi)
+        part2 = u'iccid          : %s\nmsisdn         : %s\n' %\
+                (self.iccid, self.msisdn)
+        part3 = u'SerialNumber   : %s\nsoftwareVersion: %s\nhardwareVersion: %s\n' %\
+                (self.serialNumber, self.softwareVersion, self.hardwareVersion)
+        part4 = u'MacAddress1    : %s\nWebUIVersion   : %s\n' % (self.macAddress1, self.webUIVersion)
+        part5 = u'ProductFamily  : %s\nclassify       : %s\n' %\
+                (self.productFamily, self.classify)
+        part6 = u'supportmode    : %s\nworkmode       : %s\n' %\
+                (self.supportmode, self.workmode)
+        return part0 + part1 + part2 + part3 + part4 + part5 + part6
 
     def _get_token(self):
         token_response = self._api_get("/webserver/token")
@@ -313,6 +347,29 @@ class HuaweiModem:
                 "__RequestVerificationToken": self.token
             })
         return response
+
+    def hw_req(self, api, payload=None, headers=None):
+        log = self._log
+        url = self.base_url+api
+        log.debug('##############################################')
+        log.debug('Server request: {0}'.format(pformat(url)))
+        log.debug('##############################################')
+        if payload:
+            req = requests.post(url, data=payload, headers=headers)
+        else:
+            req = requests.post(url, headers=headers)
+        if (req.status_code != 200):
+            log.warning(url)
+            log.warning(req)
+            return False
+        try:
+            response = req.text
+        except ValueError:
+            return False
+        log.debug('##############################################')
+        log.debug('Server request: {0}'.format(pformat(response)))
+        log.debug('##############################################')
+        return req.text
 
     def _api_request(self, url, rtype=u'GET', parameters=None):
         log = self._log
@@ -366,6 +423,10 @@ class HuaweiModem:
 
     def _api_post(self, url, parameters):
         return self._api_request(url, rtype=u'POST', parameters=parameters)
+
+    @property
+    def base_url(self):
+        return self._base_url
 
     @property
     def deviceName(self):
