@@ -1,5 +1,6 @@
 import requests
 import xmltodict
+import time
 from datetime import datetime
 import netifaces
 import queue
@@ -194,6 +195,14 @@ class HuaweiModem:
             'outbox': int(messages_raw['LocalOutbox'])
         }
 
+    @property
+    def in_messages(self):
+        return self.get_messages(delete=False, boxType=1)
+
+    @property
+    def out_messages(self):
+        return self.get_messages(delete=False, boxType=2)
+
     def get_messages(self, delete=False, boxType=1):
         """ Get all SMS messages stored on the modem
 
@@ -278,6 +287,8 @@ class HuaweiModem:
         """ Added 04th june 2017 by Bjoern"""
         """ Updated 01th febr 2020 by Afer92"""
         phones = u''
+        if type(numbers) == str:
+            numbers = numbers.split(u',')
         for number in numbers:
             phones += u'<Phone>{}</Phone>'.format(number)
         mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Index>-1</Index>"
@@ -285,7 +296,7 @@ class HuaweiModem:
         mxml += "<Content>{}</Content>".format(message)
         mxml += "<Length>{}</Length><Reserved>1</Reserved>".format(len(message))
         mxml += "<Date>{}</Date></request>".format(datetime.strftime(datetime.now(),
-                                                                              '%Y-%m-%d %H:%M:%S'))
+                                                   '%Y-%m-%d %H:%M:%S'))
         self.log.debug(mxml)
         self._api_post("/sms/send-sms", mxml)
 
@@ -571,31 +582,66 @@ class HuaweiModem:
 
 
 def main():
+
+    def print_status(gsm):
+        status = gsm.status
+        print(u'\nStatus:')
+        for k, v in status.items():
+            print('  {}: {}'.format(k.ljust(10), v))
+
+    def print_message_count(gsm, mtype=1):
+        message_count = gsm.message_count
+        print('\nmessage_count:')
+        for k, v in message_count.items():
+            print('  {}: {}'.format(k.ljust(10), v))
+
+        if (message_count['count'] > 0) and (mtype == 1):
+            in_messages = gsm.in_messages
+            print(u'\nin_messages:')
+            for message in in_messages:
+                print(message)
+            return
+
+        if (message_count['outbox'] > 0) and (mtype == 2):
+            out_messages = gsm.out_messages
+            print(u'\nout_messages:')
+            for message in out_messages:
+                print(message)
+
     #
     # parse arguments
     #
     loglevel = logging.INFO
     parser = argparse.ArgumentParser(description='Test module huawei_exxx.')
-    parser.add_argument(u'--debug',u'-d', help='Logging debug', action="store_true")
-    parser.add_argument(u'--warning',u'-w', help='Logging warning', action="store_true")
-    parser.add_argument(u'--critical',u'-c', help='Logging critical', action="store_true")
+    parser.add_argument(u'--debug', u'-d', help='Logging debug', action="store_true")
+    parser.add_argument(u'--warning', u'-w', help='Logging warning', action="store_true")
+    parser.add_argument(u'--critical', u'-c', help='Logging critical', action="store_true")
+    parser.add_argument(u'--list-out', u'-o', help='Out messages list', action="store_true")
+    parser.add_argument(u'--list-in', u'-i', help='In messages list', action="store_true")
+    parser.add_argument(u'--number', u'-n', help='Phone numbers comma separated')
+    parser.add_argument(u'--text', u'-t', help='sms text')
     args = parser.parse_args()
 
     if args.debug:
         loglevel = logging.DEBUG
     if args.warning:
-            loglevel = logging.WARNING
+        loglevel = logging.WARNING
     if args.critical:
-            loglevel = logging.CRITICAL
+        loglevel = logging.CRITICAL
     import modem as modem
     gsm = modem.load(logLevel=loglevel)[0]
     print(gsm)
-    status = gsm.status
-    print(u'Status:\n  status      : {}\n  signal      : {}\n  network_type: {}'.format(status[u'status'],
-                                                                                        status[u'signal'],
-                                                                                        status[u'network_type']))
+    print_status(gsm)
+    if args.list_out:
+        print_message_count(gsm, mtype=2)
+    elif args.list_in:
+        print_message_count(gsm)
+    if args.number and args.text:
+        print(args.number, args.text)
+        gsm.send_sms(args.number, args.text)
+        print_message_count(gsm, mtype=2)
+        print_status(gsm)
 
 
 if __name__ == '__main__':
     main()
-
