@@ -272,7 +272,7 @@ class HuaweiModem:
         mxml += "<Phones>{}</Phones><Sca/>".format(phones)
         mxml += "<Content>{}</Content>".format(message)
         mxml += "<Length>{}</Length><Reserved>1</Reserved>".format(len(message))
-        mxml += "<Date>{}</Date></request>".format(datetime.datetime.strftime(datetime.datetime.now(),
+        mxml += "<Date>{}</Date></request>".format(datetime.strftime(datetime.now(),
                                                                               '%Y-%m-%d %H:%M:%S'))
         self.log.debug(mxml)
         self._api_post("/sms/send-sms", mxml)
