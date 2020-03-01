@@ -593,7 +593,8 @@ def main():
         message_count = gsm.message_count
         print('\nmessage_count:')
         for k, v in message_count.items():
-            print('  {}: {}'.format(k.ljust(10), v))
+            if int(v) > 0:
+                print('  {}: {}'.format(k.ljust(10), v))
 
         if (message_count['count'] > 0) and (mtype == 1):
             in_messages = gsm.in_messages
