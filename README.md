@@ -18,6 +18,8 @@ If your huawei dongle isn't working, please report an issue. More supported mode
 - [ ] Change sim settings
 - [x] Get SMS messages
 - [x] Send SMS messages
+- [x] Modem reboot
+- [x] Dump all modem infos
 
 ## Usage example
 
@@ -54,4 +56,10 @@ If your huawei dongle isn't working, please report an issue. More supported mode
 
 >>> modem[0].get_messages(delete=False)
 [<SMSMessage ...>, <SMSMessage ...>]
+
+>>> modem[0].reboot()
+....
+
+>>> modem[0].all_data()
 ```
+....
