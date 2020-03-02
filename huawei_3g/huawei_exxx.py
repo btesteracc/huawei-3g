@@ -89,33 +89,17 @@ class HuaweiModem:
         905: "Connection failed, signal poor",
     }
 
-    def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
-        """ Create instance of the HuaweiModem class
+    def init(self, interface, sysfs_path, log, logLevel):
 
-        :param interface: Name of the network interface associated with this modem
-        :param sysfs_path: The path in /sys/** that represents this USB device
-        :param log object: if none, a default object will be used
-        :param logLevel default to INFO
-        """
-        self.interface = interface
         gws = netifaces.gateways()
         for nettpl in gws[netifaces.AF_INET]:
             if nettpl[1] == interface:
                 ip = nettpl[0]
                 break
-        self.path = sysfs_path
         self.ip = ip
         self._base_url = "http://{}/api".format(self.ip)
         self.token = ""
         self._headers = None
-        if log is None:
-            logger = logging.getLogger(u'HuaweiModem')
-            logger.setLevel(logLevel)
-            handler = logging.StreamHandler()
-            logger.addHandler(handler)
-            self._log = logger
-        else:
-            self._log = logger
 
         self._infos = {}
         try:
@@ -130,6 +114,31 @@ class HuaweiModem:
             self._devicename = u'E3372'
         self._log.debug(u'{}'.format(self._infos))
         # self._get_token()
+        
+
+    def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
+        """ Create instance of the HuaweiModem class
+
+        :param interface: Name of the network interface associated with this modem
+        :param sysfs_path: The path in /sys/** that represents this USB device
+        :param log object: if none, a default object will be used
+        :param logLevel default to INFO
+        """
+        
+        self.interface = interface
+        self.path = sysfs_path
+        self._logLevel = logLevel
+
+        if log is None:
+            logger = logging.getLogger(u'HuaweiModem')
+            logger.setLevel(logLevel)
+            handler = logging.StreamHandler()
+            logger.addHandler(handler)
+            self._log = logger
+        else:
+            self._log = logger
+
+        self.init(self.interface, self.path, log=self._log, logLevel=logLevel)
 
     def get_device_infos(self):
         status_raw = self._api_get("/device/information")
@@ -272,6 +281,7 @@ class HuaweiModem:
             for message in messages:
                 ids.append(message.message_id)
             self.delete_messages(ids)
+        self.init(self.interface, self.path, log=self._log, logLevel=self._logLevel)
         return messages
 
     def delete_message(self, message_id):

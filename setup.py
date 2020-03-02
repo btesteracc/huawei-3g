@@ -39,7 +39,7 @@ class DiscoverTest(Command):
 
 setup(
     name='huawei_3g',
-    version='0.1.0',
+    version='0.2.0',
     packages=['huawei_3g'],
     url='https://github.com/MartijnBraam/huawei-3g',
     license='MIT',
