@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 import time
+import sys
 from datetime import datetime
 import netifaces
 import queue
@@ -132,6 +133,22 @@ class HuaweiModem:
 
     def get_device_infos(self):
         status_raw = self._api_get("/device/information")
+        return(status_raw)
+
+    @property
+    def device_signal(self):
+        return self.get_device_signal()
+
+    def get_device_signal(self):
+        status_raw = self._api_get("/device/signal")
+        return(status_raw)
+
+    @property
+    def autorun_version(self):
+        return self.get_autorun_version()
+
+    def get_autorun_version(self):
+        status_raw = self._api_get("/device/autorun-version")
         return(status_raw)
 
     @property
@@ -299,6 +316,11 @@ class HuaweiModem:
                                                    '%Y-%m-%d %H:%M:%S'))
         self.log.debug(mxml)
         self._api_post("/sms/send-sms", mxml)
+
+    def control_reboot(self):
+        mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Control>1</Control></request>"
+        self._api_post("/device/control", mxml)
+    
 
     def connect(self):
         xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Action>1</Action></request>"
@@ -609,6 +631,35 @@ def main():
             for message in out_messages:
                 print(message)
 
+    def wait_gsm(logLevel=logging.INFO):
+        gsms = []
+        try:
+            gsms = modem.load(logLevel=loglevel)
+        except UnboundLocalError:
+            pass
+        trycount = 10
+        while len(gsms) == 0:
+            print(u'.', end='', flush=True)
+            sys.stdout.flush()
+            time.sleep(5)
+            try:
+                gsms = modem.load(logLevel=logLevel)
+            except UnboundLocalError:
+                pass
+            trycount += -1
+            if trycount == 0:
+                return None
+        print(u'')
+        sys.stdout.flush()
+        if trycount < 10:
+            print(u'Waiting')
+            for i in range(1, 10):
+                time.sleep(1)
+                print(u'.', end='', flush=True)
+                sys.stdout.flush()
+        return gsms[0]
+        
+
     #
     # parse arguments
     #
@@ -619,6 +670,7 @@ def main():
     parser.add_argument(u'--critical', u'-c', help='Logging critical', action="store_true")
     parser.add_argument(u'--list-out', u'-o', help='Out messages list', action="store_true")
     parser.add_argument(u'--list-in', u'-i', help='In messages list', action="store_true")
+    parser.add_argument(u'--reboot', u'-r', help='Reboot usb stick', action="store_true")
     parser.add_argument(u'--number', u'-n', help='Phone numbers comma separated')
     parser.add_argument(u'--text', u'-t', help='sms text')
     args = parser.parse_args()
@@ -630,9 +682,37 @@ def main():
     if args.critical:
         loglevel = logging.CRITICAL
     import modem as modem
-    gsm = modem.load(logLevel=loglevel)[0]
+    gsm = wait_gsm(logLevel=loglevel)
+    if gsm is None:
+        print(u'No gsm stick')
+
     print(gsm)
+
     print_status(gsm)
+
+    if args.reboot:
+        gsm.control_reboot()
+        print(u'\nReboot', end='', flush=True)
+        sys.stdout.flush()
+        for i in range(1, 10):
+            time.sleep(1)
+            print(u'.', end='', flush=True)
+            sys.stdout.flush()
+        gsm = wait_gsm(logLevel=loglevel)
+        if gsm is None:
+            print(u'No gsm stick')
+        print_status(gsm)
+        return
+
+    device_signal = gsm.device_signal
+    print(u'\ndevice_signal:')
+    for k, v in device_signal.items():
+        print('  {}: {}'.format(k.ljust(10), v))
+
+    print('\nautorun_version:')
+    for k, v in gsm.autorun_version.items():
+        print('  {}: {}'.format(k.ljust(10), v))
+
     if args.list_out:
         print_message_count(gsm, mtype=2)
     elif args.list_in:
@@ -642,7 +722,6 @@ def main():
         gsm.send_sms(args.number, args.text)
         print_message_count(gsm, mtype=2)
         print_status(gsm)
-
 
 if __name__ == '__main__':
     main()
