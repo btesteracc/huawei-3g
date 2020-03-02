@@ -41,7 +41,7 @@ setup(
     name='huawei_3g',
     version='0.2.0',
     packages=['huawei_3g'],
-    url='https://github.com/MartijnBraam/huawei-3g',
+    url='https://github.com/afer92/huawei-3g',
     license='MIT',
     author='Martijn Braam',
     author_email='martijn@brixit.nl',
