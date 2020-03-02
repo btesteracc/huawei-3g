@@ -61,5 +61,6 @@ If your huawei dongle isn't working, please report an issue. More supported mode
 ....
 
 >>> modem[0].all_data()
-```
 ....
+```
+
