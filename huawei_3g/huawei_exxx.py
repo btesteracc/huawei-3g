@@ -612,37 +612,57 @@ class HuaweiModem:
                     raise Exception("Unknown error occurred")
         return {}
 
+    def _print_dict(self, name, one_dict, callBack=print):
+        result = u'\n{}:\n'.format(name)
+        for k, v in one_dict.items():
+            result += '  {}: {}\n'.format(k.ljust(10), v)
+        if callBack is not None:
+            callBack(result)
+        else:
+            return result
+
+    def _print_array(self, name, one_array, callBack=print):
+        result = u'\n{}:\n'.format(name)
+        for v in one_array:
+            result += '  {}\n'.format(v)
+        if callBack is not None:
+            callBack(result)
+        else:
+            return result
+
+    def print_status(self, callback=print):
+        return self._print_dict(u'Status', self.status, callBack=callback)
+
+    def print_message_count(self, callback=print):
+        return self._print_dict(u'message_count', self.message_count, callBack=callback)
+
+    def print_device_signal(self, callback=print):
+        return self._print_dict(u'device_signal', self.device_signal, callBack=callback)
+
+    def print_autorun_version(self, callback=print):
+        return self._print_dict(u'autorun_version', self.autorun_version, callBack=callback)
+
+    def print_in_messages(self, callback=print):
+        return self._print_array(u'in_messages', self.in_messages, callBack=callback)
+
+    def print_out_messages(self, callback=print):
+        return self._print_array(u'out_messages', self.out_messages, callBack=callback)
+
+    def all_data(self, callback=print):
+        result = u'{}\n'.format(self)
+        result += self.print_status(callback=None)
+        result += self.print_autorun_version(callback=None)
+        result += self.print_message_count(callback=None)
+        result += self.print_device_signal(callback=None)
+        result += self.print_in_messages(callback=None)
+        result += self.print_out_messages(callback=None)
+        if callback is not None:
+            callback(result)
+        else:
+            return result
+
 
 def main():
-
-    def print_status(gsm):
-        status = gsm.status
-        print(u'\nStatus:')
-        for k, v in status.items():
-            print('  {}: {}'.format(k.ljust(10), v))
-
-    def print_message_count(gsm):
-        message_count = gsm.message_count
-        print('\nmessage_count:')
-        for k, v in message_count.items():
-            if int(v) > 0:
-                print('  {}: {}'.format(k.ljust(10), v))
-
-    def print_messages(gsm, mtype=1):
-        message_count = gsm.message_count
-
-        if (message_count['count'] > 0) and (mtype == 1):
-            in_messages = gsm.in_messages
-            print(u'\nin_messages:')
-            for message in in_messages:
-                print(message)
-            return
-
-        if (message_count['outbox'] > 0) and (mtype == 2):
-            out_messages = gsm.out_messages
-            print(u'\nout_messages:')
-            for message in out_messages:
-                print(message)
 
     def wait_gsm(logLevel=logging.INFO):
         gsms = []
@@ -678,6 +698,7 @@ def main():
     #
     loglevel = logging.INFO
     parser = argparse.ArgumentParser(description='Test module huawei_exxx.')
+    parser.add_argument(u'--all', u'-a', help='Dump all datas', action="store_true")
     parser.add_argument(u'--debug', u'-d', help='Logging debug', action="store_true")
     parser.add_argument(u'--warning', u'-w', help='Logging warning', action="store_true")
     parser.add_argument(u'--critical', u'-c', help='Logging critical', action="store_true")
@@ -698,10 +719,15 @@ def main():
     gsm = wait_gsm(logLevel=loglevel)
     if gsm is None:
         print(u'No gsm stick')
+        return
+
+    if args.all:
+        gsm.all_data(callback=print)
+        return
 
     print(gsm)
 
-    print_status(gsm)
+    gsm.print_status(callback=print)
 
     if args.reboot:
         gsm.control_reboot()
@@ -717,26 +743,20 @@ def main():
         print_status(gsm)
         return
 
-    device_signal = gsm.device_signal
-    print(u'\ndevice_signal:')
-    for k, v in device_signal.items():
-        print('  {}: {}'.format(k.ljust(10), v))
-
-    print('\nautorun_version:')
-    for k, v in gsm.autorun_version.items():
-        print('  {}: {}'.format(k.ljust(10), v))
-
-    print_message_count(gsm)
+    gsm.print_device_signal(callback=print)
+    gsm.print_autorun_version(callback=print)
+    gsm.print_message_count(callback=print)
 
     if args.list_out:
-        print_messages(gsm, mtype=2)
+        gsm.print_out_messages(callback=print)
     elif args.list_in:
-        print_messages(gsm)
+        gsm.print_in_messages(callback=print)
     if args.number and args.text:
         print(args.number, args.text)
         gsm.send_sms(args.number, args.text)
-        print_message_count(gsm, mtype=2)
-        print_status(gsm)
+        gsm = wait_gsm(logLevel=loglevel)
+        gsm.print_out_messages(callback=print)
+        gsm.print_status(callback=print)
 
 if __name__ == '__main__':
     main()
