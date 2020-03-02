@@ -611,12 +611,15 @@ def main():
         for k, v in status.items():
             print('  {}: {}'.format(k.ljust(10), v))
 
-    def print_message_count(gsm, mtype=1):
+    def print_message_count(gsm):
         message_count = gsm.message_count
         print('\nmessage_count:')
         for k, v in message_count.items():
             if int(v) > 0:
                 print('  {}: {}'.format(k.ljust(10), v))
+
+    def print_messages(gsm, mtype=1):
+        message_count = gsm.message_count
 
         if (message_count['count'] > 0) and (mtype == 1):
             in_messages = gsm.in_messages
@@ -713,10 +716,12 @@ def main():
     for k, v in gsm.autorun_version.items():
         print('  {}: {}'.format(k.ljust(10), v))
 
+    print_message_count(gsm)
+
     if args.list_out:
-        print_message_count(gsm, mtype=2)
+        print_messages(gsm, mtype=2)
     elif args.list_in:
-        print_message_count(gsm)
+        print_messages(gsm)
     if args.number and args.text:
         print(args.number, args.text)
         gsm.send_sms(args.number, args.text)
