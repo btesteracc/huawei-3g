@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:
     from datastructures import SMSMessage
 try:
-    from huawei_3g.modem import modem as modem
+    from huawei_3g import modem as modem
 except ModuleNotFoundError:
     from modem import modem as modem
 
