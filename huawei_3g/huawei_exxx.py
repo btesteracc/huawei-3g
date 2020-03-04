@@ -422,7 +422,7 @@ class HuaweiModem:
             try_count += 1
             if try_count > 10:
                 break
-            print(u'ConnectionError. Waiting 5s')
+            print(u'Waiting modem. Waiting 5s')
             time.sleep(5)
             response = try_request(req_funct, url, parameters, headers=headers, cookies=cookies)
         if response is None:
