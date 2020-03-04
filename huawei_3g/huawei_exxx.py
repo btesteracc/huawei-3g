@@ -13,6 +13,10 @@ try:
     from huawei_3g.datastructures import SMSMessage
 except ModuleNotFoundError:
     from datastructures import SMSMessage
+try:
+    from huawei_3g.modem import modem as modem
+except ModuleNotFoundError:
+    from modem import modem as modem
 
 
 class TokenError(Exception):
@@ -89,15 +93,22 @@ class HuaweiModem:
         905: "Connection failed, signal poor",
     }
 
-    def init(self, interface, sysfs_path, log, logLevel):
+    def init(self, interface=None, sysfs_path=None, log=None):
+
+        if interface is None:
+            interface = self._interface
+        if sysfs_path is None:
+            sysfs_path = self._path
+        if log is None:
+            log = self._log
 
         gws = netifaces.gateways()
         for nettpl in gws[netifaces.AF_INET]:
             if nettpl[1] == interface:
                 ip = nettpl[0]
                 break
-        self.ip = ip
-        self._base_url = "http://{}/api".format(self.ip)
+        self._ip = ip
+        self._base_url = "http://{}/api".format(self._ip)
         self.token = ""
         self._headers = None
 
@@ -114,7 +125,6 @@ class HuaweiModem:
             self._devicename = u'E3372'
         self._log.debug(u'{}'.format(self._infos))
         # self._get_token()
-        
 
     def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
         """ Create instance of the HuaweiModem class
@@ -124,25 +134,37 @@ class HuaweiModem:
         :param log object: if none, a default object will be used
         :param logLevel default to INFO
         """
-        
-        self.interface = interface
-        self.path = sysfs_path
+
+        self._interface = interface
+        self._path = sysfs_path
         self._logLevel = logLevel
 
         if log is None:
             logger = logging.getLogger(u'HuaweiModem')
             logger.setLevel(logLevel)
-            handler = logging.StreamHandler()
+            handler = logging.StreamHandler(stream=sys.stdout)
             logger.addHandler(handler)
             self._log = logger
         else:
             self._log = logger
 
-        self.init(self.interface, self.path, log=self._log, logLevel=logLevel)
+        self.init()
 
     def get_device_infos(self):
         status_raw = self._api_get("/device/information")
         return(status_raw)
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def interface(self):
+        return self._interface
+
+    @property
+    def ip(self):
+        return self._ip
 
     @property
     def device_signal(self):
@@ -281,7 +303,7 @@ class HuaweiModem:
             for message in messages:
                 ids.append(message.message_id)
             self.delete_messages(ids)
-        self.init(self.interface, self.path, log=self._log, logLevel=self._logLevel)
+        self.init()
         return messages
 
     def delete_message(self, message_id):
@@ -330,7 +352,6 @@ class HuaweiModem:
     def control_reboot(self):
         mxml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Control>1</Control></request>"
         self._api_post("/device/control", mxml)
-    
 
     def connect(self):
         xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><request><Action>1</Action></request>"
@@ -374,22 +395,39 @@ class HuaweiModem:
                 self.cookie = token_raw[u'SesInfo'].split(u'=')[1]
 
     def _api_request_token(self, url, rtype=u'GET', parameters=None):
+
+        def try_request(req_funct, url, parameters, headers=None, cookies=None):
+
+            try:
+                response = req_funct(url, parameters, headers=headers, cookies=cookies)
+            except requests.exceptions.ConnectionError:
+                return None
+            return response
+
+        headers={
+                 "__RequestVerificationToken": self.token
+                 }
+
+        cookies={u'SessionId': self.cookie}
+
         if rtype == u'POST':
-            response = requests.post(url,
-                                     parameters,
-                                     headers={
-                                              "__RequestVerificationToken": self.token
-                                              },
-                                     cookies={u'SessionId': self.cookie}
-                                     )
+            req_funct = requests.post
         elif rtype == u'GET':
-            response = requests.get(url,
-                                    parameters,
-                                    headers={
-                                             "__RequestVerificationToken": self.token
-                                            },
-                                    cookies={u'SessionId': self.cookie}
-                                    )
+            req_funct = requests.get
+
+        response = try_request(req_funct, url, parameters, headers=headers, cookies=cookies)
+
+        try_count = 0
+        while response is None:
+            try_count += 1
+            if try_count > 10:
+                break
+            print(u'ConnectionError. Waiting 5s')
+            time.sleep(5)
+            response = try_request(req_funct, url, parameters, headers=headers, cookies=cookies)
+        if response is None:
+            response = req_funct(url, parameters, headers=headers, cookies=cookies)
+
         return response
 
     def _api_request_base(self, url, rtype=u'GET', parameters=None):
@@ -661,6 +699,57 @@ class HuaweiModem:
         else:
             return result
 
+    def wait_modem_ready(self, logLevel=logging.INFO):
+
+        log = self._log
+        modems = []
+        try:
+            modems = modem.load(logLevel=logLevel)
+        except UnboundLocalError:
+            pass
+        trycount = 10
+        while len(modems) == 0:
+            log.info('Waiting 5s')
+            time.sleep(5)
+            try:
+                modems = modem.load(logLevel=logLevel)
+            except UnboundLocalError:
+                pass
+            trycount += -1
+            if trycount == 0:
+                log.warning('No modem found')
+                return None
+        return modems[0]
+
+    def reboot_and_wait(self, logLevel=logging.INFO):
+
+        def log_console(text, logger, handler):
+            logger.info(text)
+            handler.flush()
+
+        logger = logging.getLogger(u'HuaweiModem_reboot')
+        logger.setLevel(logLevel)
+        handler = logging.StreamHandler(stream=sys.stdout)
+        logger.addHandler(handler)
+        log = logger
+
+        log_console('Reboot command send', logger, handler)
+        self.control_reboot()
+
+        log_console('Waiting 10s', logger, handler)
+        time.sleep(10)
+
+        log_console('Waiting moddem ready', logger, handler)
+        modem = self.wait_modem_ready(logLevel=logging.INFO)
+
+        log_console('modem status: {}'.format(self.status), logger, handler)
+
+        log_console('Waiting 10s', logger, handler)
+        time.sleep(10)
+
+        log_console('modem status: {}'.format(self.status), logger, handler)
+        return
+
 
 def main():
 
@@ -691,11 +780,11 @@ def main():
                 print(u'.', end='', flush=True)
                 sys.stdout.flush()
         return gsms[0]
-        
 
     #
     # parse arguments
     #
+
     loglevel = logging.INFO
     parser = argparse.ArgumentParser(description='Test module huawei_exxx.')
     parser.add_argument(u'--all', u'-a', help='Dump all datas', action="store_true")
@@ -720,6 +809,9 @@ def main():
     if gsm is None:
         print(u'No gsm stick')
         return
+
+    if False:
+        gsm.reboot_and_wait()
 
     if args.all:
         gsm.all_data(callback=print)
@@ -757,6 +849,7 @@ def main():
         gsm = wait_gsm(logLevel=loglevel)
         gsm.print_out_messages(callback=print)
         gsm.print_status(callback=print)
+
 
 if __name__ == '__main__':
     main()
