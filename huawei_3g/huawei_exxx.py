@@ -748,6 +748,8 @@ class HuaweiModem:
         time.sleep(10)
 
         log_console('modem status: {}'.format(self.status), logger, handler)
+        
+        logger.removeHandler(handler)
         return
 
 

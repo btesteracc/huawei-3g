@@ -62,5 +62,18 @@ If your huawei dongle isn't working, please report an issue. More supported mode
 
 >>> modem[0].all_data()
 ....
+
+>>> modems[0].reboot_and_wait()
+Reboot command send
+Waiting 10s
+Waiting moddem ready
+modem status: {'status': 'Disconnected', 'signal': 20, 'network_type': 'LTE'}
+Waiting 10s
+ConnectionError. Waiting 5s
+ConnectionError. Waiting 5s
+ConnectionError. Waiting 5s
+ConnectionError. Waiting 5s
+modem status: {'status': 'Connected', 'signal': 20, 'network_type': 'LTE'}
+....
 ```
 
