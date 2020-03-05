@@ -1,5 +1,5 @@
 /**********************************************************
-* sql sript to create an sqlite3 database                 *
+* sql script to create an sqlite3 database                *
 **********************************************************/
 CREATE TABLE inbox (
   UpdatedInDB NUMERIC NOT NULL DEFAULT (datetime('now')),

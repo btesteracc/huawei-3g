@@ -126,7 +126,8 @@ class HuaweiModem:
         self._log.debug(u'{}'.format(self._infos))
         # self._get_token()
 
-    def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO):
+    def __init__(self, interface, sysfs_path, log=None, logLevel=logging.INFO,
+                 on_receive=None, on_send=None, on_event_parm=None):
         """ Create instance of the HuaweiModem class
 
         :param interface: Name of the network interface associated with this modem
@@ -138,6 +139,10 @@ class HuaweiModem:
         self._interface = interface
         self._path = sysfs_path
         self._logLevel = logLevel
+
+        self._on_receive = on_receive
+        self._on_send = on_send
+        self._on_event_parm = on_event_parm
 
         if log is None:
             logger = logging.getLogger(u'HuaweiModem')
@@ -298,6 +303,11 @@ class HuaweiModem:
                 sms.receive_time = datetime.strptime(receive_time, '%Y-%m-%d %H:%M:%S')
                 sms.rs_time = sms.receive_time
             messages.append(sms)
+            if (boxType == 2) and (self._on_send is not None):
+                self._on_send(sms, self._on_event_parm)
+            if (boxType == 1) and (self._on_receive is not None):
+                print(sms, self._on_event_parm)
+                self._on_receive(sms, self._on_event_parm)
         if delete:
             ids = []
             for message in messages:
@@ -630,6 +640,30 @@ class HuaweiModem:
     def log(self):
         return self._log
 
+    @property
+    def on_receive(self):
+        return self._on_receive
+
+    @on_receive.setter
+    def on_receive(self, value):
+        self._on_receive = value
+
+    @property
+    def on_send(self):
+        return self._on_send
+
+    @on_receive.setter
+    def on_send(self, value):
+        self._on_send = value
+
+    @property
+    def on_event_parm(self):
+        return self._on_event_parm
+
+    @on_event_parm.setter
+    def on_event_parm(self, value):
+        self._on_event_parm = value
+
     def _parse_api_response(self, response):
         if response.status_code == 200:
             payload = response.content
@@ -783,6 +817,12 @@ def main():
                 sys.stdout.flush()
         return gsms[0]
 
+    def on_receive(sms, param):
+        print('<- {}'.format(sms))
+
+    def on_send(sms, param):
+        print('-> {}'.format(sms))
+
     #
     # parse arguments
     #
@@ -842,9 +882,11 @@ def main():
     gsm.print_message_count(callback=print)
 
     if args.list_out:
-        gsm.print_out_messages(callback=print)
+        gsm.on_send = on_send
+        gsm.print_out_messages(callback=None)
     elif args.list_in:
-        gsm.print_in_messages(callback=print)
+        gsm.on_receive = on_receive
+        gsm.print_in_messages(callback=None)
     if args.number and args.text:
         print(args.number, args.text)
         gsm.send_sms(args.number, args.text)
