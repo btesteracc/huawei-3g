@@ -150,10 +150,12 @@ class HuaweiDb(HuaweiModem):
             sms.phone = row[1]
             sms.rs_time  = row[3]
             if table == 'inbox':
-                sms.send_time = row[3]
+                sms.sender = row[1]
+                sms.receive_time = row[3]
                 sms.message_id = row[4]
             if table == 'outbox':
-                sms.receive_time = row[3]
+                sms.dest = row[1]
+                sms.send_time = row[3]
                 sms.message_id = row[4]
             smss.append(sms)
         return smss
@@ -251,12 +253,10 @@ def main():
     if args.dbfile:
         smss = modem.sms_load_from_db('inbox', "`RecipientID`='{}'".format(args.idsms))
         for sms in smss:
-            print(sms.message_id)
-            print(sms)
+            print(u'message id (in):{}\n{}'.format(sms.message_id, sms))
         smss = modem.sms_load_from_db('outbox', "`SenderID`='{}'".format(args.idsms))
         for sms in smss:
-            print(sms.message_id)
-            print(sms)
+            print(u'message id (out):{}\n{}'.format(sms.message_id, sms))
 
 
 if __name__ == '__main__':
