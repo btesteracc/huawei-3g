@@ -11,4 +11,7 @@ class SMSMessage:
     priority = 0
 
     def __repr__(self):
-        return "<SMSMessage {} '{}' from '{}' time '{}'>".format(self.message_id, self.message, self.phone, self.rs_time)
+        if self.receive_time:
+            return "<SMSMessage {} '{}' from '{}' time '{}'>".format(self.message_id, self.message, self.phone, self.rs_time)
+        else:
+            return "<SMSMessage {} '{}' to '{}' time '{}'>".format(self.message_id, self.message, self.phone, self.rs_time)

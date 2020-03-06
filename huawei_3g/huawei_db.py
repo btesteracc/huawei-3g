@@ -208,11 +208,13 @@ def main():
 
     def on_receive(sms, param):
         print('<- {}'.format(sms))
-        print(param.sms_store_in_db(sms))
+        if param.db_file:
+            print(u'result : {}\n{}'.format(param.sms_store_in_db(sms), sms))
 
     def on_send(sms, param):
         print('-> {}'.format(sms))
-        print(u'result : {}'.format(param.sms_store_in_db(sms)))
+        if param.db_file:
+            print(u'result : {}\n{}'.format(param.sms_store_in_db(sms), sms))
 
     #
     # parse arguments
@@ -235,21 +237,26 @@ def main():
         loglevel = logging.CRITICAL
     import modem as modem
 
-    (interface, path) = find_gsm(logLevel=loglevel)
-    modem = HuaweiDb(interface, path, log=None, logLevel=loglevel,
+    modems = modem.find()
+    if len(modems) == 0:
+        print(u'No modem found')
+        return
+    modem = HuaweiDb(modems[0][u'interface'], modems[0][u'path'], log=None, logLevel=loglevel,
                      on_receive=on_receive, on_send=on_send, on_event_parm='self',
                      db_file=args.dbfile, update_db=False)
     print(modem)
     print(modem.in_messages)
     print(modem.out_messages)
-    smss = modem.sms_load_from_db('inbox', "`RecipientID`='{}'".format(args.idsms))
-    for sms in smss:
-        print(sms.message_id)
-        print(sms)
-    smss = modem.sms_load_from_db('outbox', "`SenderID`='{}'".format(args.idsms))
-    for sms in smss:
-        print(sms.message_id)
-        print(sms)
+
+    if args.dbfile:
+        smss = modem.sms_load_from_db('inbox', "`RecipientID`='{}'".format(args.idsms))
+        for sms in smss:
+            print(sms.message_id)
+            print(sms)
+        smss = modem.sms_load_from_db('outbox', "`SenderID`='{}'".format(args.idsms))
+        for sms in smss:
+            print(sms.message_id)
+            print(sms)
 
 
 if __name__ == '__main__':
